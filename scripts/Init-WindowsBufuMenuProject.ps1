@@ -81,8 +81,8 @@ $psd1 = Join-Path $modPath "$ModuleName.psd1"
 
 if (-not (Test-Path $psm1)) {
     @"
-<#  
-  $ModuleName module entry point  
+<#
+  $ModuleName module entry point
 #>
 
 # Dot-source all menu scripts

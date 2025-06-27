@@ -1,18 +1,22 @@
 {
-  // General  
   "ProjectName":    "WindowsBufuMenu",
-  "Language":       "en-US",            // i18n
-  "Theme":          "dark",             // dark | light | solarized
-
-  // Paths  
+  "Language":       "en-US",
+  "Theme":          "dark",
   "Paths": {
     "Logs":         "./Logs",
     "Modules":      "./Modules",
     "Menus":        "./Menus",
     "Temp":         "%TEMP%"
   },
+  
+  "Scripts": {
+      "WSL2_docker_tcp_udp_Ports": "./Scripts/WSL2_docker_tcp_udp_Ports.ps1",
+      "WSL2_create_docker_rules": "./Scripts/WSL2_create_docker_rules.ps1",
+      "swarm_ports_firewall": "./Scripts/swarm_ports_firewall.ps1",
+      "WSL2_hostnames": "./Scripts/WSL2_hostnames.ps1",
+      "WSL2_hostinfo": "./Scripts/WSL2_hostinfo.ps1"
+    },
 
-  // Key Bindings
   "KeyBindings": {
     "Up":        "UpArrow",
     "Down":      "DownArrow",
@@ -25,7 +29,6 @@
     "Search":    "/" 
   },
 
-  // Menu customization  
   "MenuOrder": [
     "Main_Menu",
     "WSL2_Menu",
@@ -38,15 +41,12 @@
     "Menu_Customizer_Menu"
   ],
   "HiddenMenus": [
-    // drop any menu you don’t want to show by default
   ],
   "LabelOverrides": {
-    // override any auto-generated label
     "WSL2_Menu":             "WSL2 Settings",
     "Edit_Configuration_Menu":"Configuration Editor"
   },
 
-  // Profiles (for future expansion)  
   "Profiles": {
     "default": {
       "WSL2": { "DefaultDistro": "Ubuntu-22.04" }

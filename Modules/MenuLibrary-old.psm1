@@ -1,0 +1,1921 @@
+﻿# Modules/MenuLibrary.psm1
+
+#region ====== Load Modules =======================================================================
+#region -------- Load Global Configuration --------------------------------------------------------
+Import-Module "$PSScriptRoot/Config.psm1"
+
+# Load once into a global variable
+$Global:WFMConfig = Import-GlobalConfig
+
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Get-GlobalConfig { return $Global:WFMConfig }
+
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Plugin Loader --------------------------------------------------------------------
+<# Disabled
+Import-Module "$PSScriptRoot/PluginLoader.psm1"; Import-Plugins $Global:Config.Paths.Plugins
+#>
+#endregion ----------------------------------------------------------------------------------------
+#region -------- i18n stub ------------------------------------------------------------------------
+<# Disabled
+Import-Module "$PSScriptRoot/I18n.psm1";       $Global:Translations = Load-Translations `
+                                                -Lang $Global:Config.Language `
+                                                -BasePath (Split-Path $PSScriptRoot)
+#>
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Load Telemetry -------------------------------------------------------------------
+<# Disabled
+#Import-Module "$PSScriptRoot/Telemetry.psm1"
+#>
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Dynamic Menu Builder -------------------------------------------------------------
+<# Disabled
+Import-Module "$PSScriptRoot/../Modules/DynamicModuleLoader.psm1"   # Dynamic Menu Builder
+#>
+#endregion ----------------------------------------------------------------------------------------
+#endregion ========================================================================================
+
+#region ====== Functions for Admin Permissions ====================================================
+#region -------- Start As Administrator -----------------------------------------------------------
+<#
+.SYNOPSIS
+    Relauch PowerShell with elevated privileges.
+.PARAMETER Arguments
+    Optional arguments to pass to the new process.
+.EXAMPLE
+    Start-AsAdmin -Arguments "-NoProfile -File `"$PSCommandPath`""
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Arguments
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Start-AsAdmin {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]$Arguments = ""
+    )
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell.exe"
+    $psi.Arguments = $Arguments
+    $psi.Verb = "runas"
+    try {
+        [System.Diagnostics.Process]::Start($psi) | Out-Null
+    }
+    catch {
+        Write-Error "Failed to run as admin: $_"
+    }
+}
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Invoke As Administrator ----------------------------------------------------------
+<#
+.SYNOPSIS
+    Ensures the current script is running as administrator.
+.DESCRIPTION
+    Checks if the script is elevated; if not, re-launches the current script as an administrator.
+.EXAMPLE
+    Invoke-AsAdministrator
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Invoke-AsAdministrator {
+    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "Restarting as Administrator..."
+        Start-AsAdmin -Arguments $MyInvocation.MyCommand.Definition
+        exit
+    }
+}
+#endregion ----------------------------------------------------------------------------------------
+
+#endregion ========================================================================================
+
+#region ====== Menu Alignment and Sizing ==========================================================
+#region -------- Write Centered -------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Writes a centered line to the console.
+.PARAMETER Text
+    The text to write.
+.PARAMETER ForegroundColor
+    (Optional) Specifies the output color (default: White).
+.EXAMPLE
+    Write-Centered -Text "Goodbye" -ForegroundColor Green
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.PARAMETER ForegroundColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Write-Centered {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [ConsoleColor]$ForegroundColor = "Gray"
+    )
+    $consoleWidth = [System.Console]::WindowWidth
+    $padding = [math]::Floor(($consoleWidth - $Text.Length) / 2)
+    $centeredText = (" " * $padding) + $Text
+    Write-Host $centeredText -ForegroundColor $ForegroundColor
+}
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Show Centered Info ---------------------------------------------------------------
+<#
+.SYNOPSIS
+    Displays centered information using Update-CenteredOutput.
+.PARAMETER Info
+    The informational text.
+.EXAMPLE
+    Show-CenteredInfo -Info "Welcome!"
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Info
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Show-CenteredInfo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Info
+    )
+    $centeredText = Update-CenteredOutput -Text $Info
+    Write-Host $centeredText
+}
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Update Centered Output -----------------------------------------------------------
+<#
+.SYNOPSIS
+    Centers input text based on console width.
+.PARAMETER Text
+    The text to be centered.
+.EXAMPLE
+    Update-CenteredOutput -Text "Hello"
+#>
+
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Text
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Update-CenteredOutput {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+    # Ensure the value isn't empty
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return "No text provided."
+    }
+    # Center the text based on console width
+    $consoleWidth = [System.Console]::WindowWidth
+    $padding = [math]::Floor(($consoleWidth - $Text.Length) / 2)
+    return (" " * $padding) + $Text
+}
+#endregion ----------------------------------------------------------------------------------------
+
+#endregion ========================================================================================
+
+#region ====== Functions for Menu =================================================================
+#region -------- Get Resolved Script Path ---------------------------------------------------------
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER ScriptKey
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER ScriptKey
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER ScriptKey
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER ScriptKey
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Get-ResolvedScriptPath {
+    param([string]$ScriptKey)
+
+    $path = $Global:WFMConfig.Scripts[$ScriptKey]
+    if (-not $path) {
+        throw "Script key '$ScriptKey' not found in config."
+    }
+
+    return Resolve-Path -Path (Join-Path $PSScriptRoot "..\$path")
+}
+#endregion ----------------------------------------------------------------------------------------
+#region -------- Confirm Action -------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Prompts the user for confirmation before proceeding with an action.
+.PARAMETER Message
+    The message to display to the user.
+.PARAMETER Default
+    The default response if the user simply presses Enter.
+.EXAMPLE
+    Confirm-Action -Message "Are you sure?" -Default 'N'
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Confirm-Action {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Message,
+        [ValidateSet('Y','N')][string] $Default = 'N'
+    )
+    $choices = if ($Default -eq 'Y') { '[Y]/N' } else { 'Y/[N]' }
+    while ($true) {
+        $resp = Read-Host "$Message $choices"
+        if (-not $resp) { $resp = $Default }
+        switch ($resp.ToUpper()) {
+            'Y' { return $true }
+            'N' { return $false }
+            default { Write-Host ' Please enter Y or N.' -ForegroundColor Yellow }
+        }
+    }
+}
+#endregion  ---------------------------------------------------------------------------------------
+#region -------- Pause ----------------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Pauses the script execution and waits for user input.
+.DESCRIPTION
+    This function displays a message prompting the user to press Enter to continue.
+.PARAMETER Message
+    The message to display to the user.
+.EXAMPLE
+    Pause -Message "Press Enter to continue..."
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Message
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Pause {
+    [CmdletBinding()]
+    param([string]$Message = 'Press any key to continue…')
+    Write-Host; Write-Host $Message -ForegroundColor DarkGray
+    [Console]::ReadKey($true) | Out-Null
+}
+#endregion  ---------------------------------------------------------------------------------------
+#region -------- Read-Input -----------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Reads user input from the console.
+.DESCRIPTION
+    This function prompts the user for input and returns the entered value.
+.PARAMETER Prompt
+    The message to display to the user.
+.EXAMPLE
+    $userInput = Read-Input -Prompt "Enter your name:"
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Prompt
+Parameter description
+
+.PARAMETER Default
+Parameter description
+
+.PARAMETER AsSecureString
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Read-Input {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Prompt,
+        [string]                     $Default,
+        [switch]                     $AsSecureString
+    )
+    if ($AsSecureString) {
+        return Read-Host $Prompt -AsSecureString
+    }
+    if ($Default) {
+        $resp = Read-Host "$Prompt [$Default]"
+        return if ($resp) { $resp } else { $Default }
+    } else {
+        return Read-Host $Prompt
+    }
+}
+#endregion  ---------------------------------------------------------------------------------------
+#region -------- Show-PageText --------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Displays a text page with pagination.
+.DESCRIPTION
+    This function takes a long string of text and displays it one page at a time,
+    allowing the user to navigate through the text using keyboard input.
+.PARAMETER Text
+    The text to display.
+.PARAMETER PageSize
+    The number of lines to display per page.
+.EXAMPLE
+    Show-PageText -Text $longText -PageSize 10
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER FilePath
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Show-PagedText {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $FilePath
+    )
+    if (-not (Test-Path $FilePath)) {
+        Write-Error "File not found: $FilePath"; return
+    }
+    $lines = Get-Content $FilePath
+    $pageSize = [Console]::WindowHeight - 4
+    for ($i=0; $i -lt $lines.Count; $i += $pageSize) {
+        Clear-Host
+        $slice = $lines[$i..[math]::Min($i+$pageSize-1,$lines.Count-1)]
+        $slice | ForEach-Object { Write-Host $_ }
+        Write-Host; Write-Host "PgUp/PgDn Navigate pages, Esc to exit..." -ForegroundColor DarkGray
+        $k = [Console]::ReadKey($true)
+        if ($k.Key -eq 'Escape') { break }
+        if ($k.Key -eq 'PageUp') { $i = [math]::Max(-$pageSize, $i - 2*$pageSize) }
+    }
+}
+#endregion  ---------------------------------------------------------------------------------------
+#region -------- Show-ProgressBar -----------------------------------------------------------------
+<#
+.SYNOPSIS
+    Displays a progress bar in the console.
+.DESCRIPTION
+    This function shows a progress bar in the console window, which can be used to indicate the progress of a long-running operation.
+.PARAMETER Percentage
+    The percentage of completion (0-100) to display on the progress bar.
+.EXAMPLE
+    Show-ProgressBar -Percentage 75
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER PercentComplete
+Parameter description
+
+.PARAMETER Activity
+Parameter description
+
+.PARAMETER Status
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Show-ProgressBar {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]    $PercentComplete,
+        [Parameter(Mandatory)][string] $Activity,
+        [string]                       $Status
+    )
+    Write-Progress -Activity $Activity -Status $Status -PercentComplete $PercentComplete
+}
+#endregion  ---------------------------------------------------------------------------------------
+#region -------- Show-Help ------------------------------------------------------------------------
+<#
+.SYNOPSIS
+    Displays help information for the script or module.
+
+.DESCRIPTION
+    This function shows help information, including available commands and their usage.
+
+.PARAMETER Command
+    The command for which to display help information.
+
+.EXAMPLE
+    Show-Help -Command Get-MenuTitle
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Show-Help {
+    Clear-Host
+    @"
+Menu Navigation Help
+
+  ↑ / ↓       Move selection
+  PgUp/PgDn   Jump a page
+  Enter       Select highlighted item
+  b           Go back to previous menu
+  Esc         Exit application
+  h           Show this screen
+
+Press any key to return...
+"@ | Write-Host
+    [Console]::ReadKey($true) | Out-Null
+}
+#endregion  ---------------------------------------------------------------------------------------
+
+#endregion ========================================================================================
+
+#region ====== Get Script Name annd set Menu Title ================================================
+<#
+.SYNOPSIS
+    Retrieves the script name and sets it as the menu title.
+.DESCRIPTION
+    This function gets the name of the currently executing script, removes the file extension,
+    and replaces underscores with spaces to create a user-friendly title for the menu.
+.PARAMETER ScriptName
+    The name of the script file (without extension) to use as the menu title.
+.PARAMETER Title
+    The title to set for the console window.
+.EXAMPLE
+    $MenuTitle = Get-MenuTitle
+    Write-Host "Menu Title: $MenuTitle"
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Path
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Path
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Path
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Path
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Get-MenuTitleFromFile {
+    [CmdletBinding()]
+    param(
+        [string]$Path = $MyInvocation.MyCommand.Path
+    )
+
+    if (-not $Path) {
+        Write-Warning "Unable to determine script path."
+        return "Untitled Menu"
+    }
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($Path)
+    $title = $fileName -replace '[_\-]', ' '  # Replace underscores and dashes with spaces
+    return $title.Trim()
+}
+#endregion ========================================================================================
+
+#region ====== Show-Menu ==========================================================================
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Title
+Parameter description
+
+.PARAMETER Options
+Parameter description
+
+.PARAMETER FgColor
+Parameter description
+
+.PARAMETER BgColor
+Parameter description
+
+.PARAMETER SelFgColor
+Parameter description
+
+.PARAMETER SelBgColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Title
+Parameter description
+
+.PARAMETER Options
+Parameter description
+
+.PARAMETER FgColor
+Parameter description
+
+.PARAMETER BgColor
+Parameter description
+
+.PARAMETER SelFgColor
+Parameter description
+
+.PARAMETER SelBgColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Title
+Parameter description
+
+.PARAMETER Options
+Parameter description
+
+.PARAMETER FgColor
+Parameter description
+
+.PARAMETER BgColor
+Parameter description
+
+.PARAMETER SelFgColor
+Parameter description
+
+.PARAMETER SelBgColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+<#
+.SYNOPSIS
+Short description
+
+.DESCRIPTION
+Long description
+
+.PARAMETER Title
+Parameter description
+
+.PARAMETER Options
+Parameter description
+
+.PARAMETER FgColor
+Parameter description
+
+.PARAMETER BgColor
+Parameter description
+
+.PARAMETER SelFgColor
+Parameter description
+
+.PARAMETER SelBgColor
+Parameter description
+
+.EXAMPLE
+An example
+
+.NOTES
+General notes
+#>
+function Show-Menu {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]   $Title,
+        [Parameter(Mandatory)][object[]] $Options,   # @{ Label; Value }
+        [string]                         $FgColor,
+        [string]                         $BgColor,
+        [string]                         $SelFgColor,
+        [string]                         $SelBgColor
+    )
+    #region == Ensure config.Appearance exists and has all 4 properties ===========================
+    if (-not $Global:WFMConfig -or -not $Global:WFMConfig.Appearance) {
+        $Global:WFMConfig.Appearance = @{}
+    }
+    $app = $Global:WFMConfig.Appearance
+    #endregion ====================================================================================
+    #region == Default palette ====================================================================
+    $defaults = @{
+        FgColor    = 'White'
+        BgColor    = 'DarkBlue'
+        SelFgColor = 'Black'
+        SelBgColor = 'Cyan'
+    }
+
+    foreach ($k in $defaults.Keys) {
+        if (-not $app.PSObject.Properties.Match($k)) {
+            $app | Add-Member -MemberType NoteProperty -Name $k -Value $defaults[$k]
+        }
+        elseif (-not $app.$k) {
+            $app.$k = $defaults[$k]
+        }
+    }
+    #endregion ====================================================================================
+    #region == Use passed-in values or fallback to config or defaults =============================
+    $FgColor    = $FgColor    ?? $app.FgColor    ?? $defaults.FgColor
+    $BgColor    = $BgColor    ?? $app.BgColor    ?? $defaults.BgColor
+    $SelFgColor = $SelFgColor ?? $app.SelFgColor ?? $defaults.SelFgColor
+    $SelBgColor = $SelBgColor ?? $app.SelBgColor ?? $defaults.SelBgColor
+    #endregion ====================================================================================
+    #region == Safe parse into ConsoleColor (fallback on any parse error) =========================
+    try { $Fg   = [ConsoleColor]::Parse([ConsoleColor], $FgColor)    } catch { $Fg   = [ConsoleColor]$defaults.FgColor }
+    try { $Bg   = [ConsoleColor]::Parse([ConsoleColor], $BgColor)    } catch { $Bg   = [ConsoleColor]$defaults.BgColor }
+    try { $SelF = [ConsoleColor]::Parse([ConsoleColor], $SelFgColor) } catch { $SelF = [ConsoleColor]$defaults.SelFgColor }
+    try { $SelB = [ConsoleColor]::Parse([ConsoleColor], $SelBgColor) } catch { $SelB = [ConsoleColor]$defaults.SelBgColor }
+    #endregion ====================================================================================
+    #region == Render Loop ========================================================================
+    $sel      = 0
+    $maxIndex = $Options.Count - 1
+    #endregion ====================================================================================
+    #region == Menu ===============================================================================
+    while ($true) {
+        Clear-Host
+        $w = [Console]::WindowWidth
+
+        #region --- Title Row —--------------------------------------------------------------------
+        $t    = "  $Title  "
+        $padT = [math]::Floor(($w - $t.Length) / 2)
+        Write-Host (' ' * $padT) -NoNewline
+        Write-Host $t -ForegroundColor $SelF -BackgroundColor $SelB
+        Write-Host
+        #endregion --------------------------------------------------------------------------------
+        #region ---- Menu Items -------------------------------------------------------------------
+        for ($i = 0; $i -lt $Options.Count; $i++) {
+            $lbl  = "  $($Options[$i].Label)  "
+            $pad  = [math]::Floor(($w - $lbl.Length) / 2)
+            Write-Host (' ' * $pad) -NoNewline
+
+            if ($i -eq $sel) {
+                Write-Host $lbl -ForegroundColor $SelF -BackgroundColor $SelB
+            } else {
+                Write-Host $lbl -ForegroundColor $Fg -BackgroundColor $Bg
+            }
+        }
+        #endregion --------------------------------------------------------------------------------
+        #region ---- Input Options ----------------------------------------------------------------
+        Write-Host
+        $hint  = '↑/↓ = nav   PgUp/PgDn = page   Enter = select   b = back   Esc = exit   h = help'
+        $padH  = [math]::Floor(($w - $hint.Length) / 2)
+        Write-Host (' ' * $padH) -NoNewline
+        Write-Host $hint -ForegroundColor DarkGray
+        #endregion --------------------------------------------------------------------------------
+        #region ---- Input Keys -------------------------------------------------------------------
+        $key = [Console]::ReadKey($true)
+        switch ($key.Key) {
+            'UpArrow'    { if ($sel -gt 0)       { $sel-- } }
+            'DownArrow'  { if ($sel -lt $maxIndex){ $sel++ } }
+            'PageUp'     { $sel = [math]::Max(0,      $sel - 5) }
+            'PageDown'   { $sel = [math]::Min($maxIndex,$sel + 5) }
+            'Escape'     { return 'ESC' }
+            'B'          { return 'BACK' }
+            'H'          { Show-Help; continue }
+            'Enter'      { return $Options[$sel].Value }
+        }
+        #endregion -------------------------------------------------------------------------------
+    }
+}
+
+#endregion ========================================================================================
+
+#endregion ========================================================================================
+
+#region ====== Export Module Member ===============================================================
+Export-ModuleMember `
+     -Function Start-AsAdmin, Invoke-AsAdministrator, Get-GlobalConfig, Get-ResolvedScriptPath, `
+                Write-Centered, Show-CenteredInfo, Update-CenteredOutput, Confirm-Action, Pause, `
+                Read-Input, Show-PagedText, Show-ProgressBar, Show-Help, `
+                Get-MenuTitleFromFile, Show-Menu
+
+#endregion ========================================================================================

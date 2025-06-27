@@ -1,42 +1,109 @@
-# Modules/MenuLibrary.psm1
+﻿# Modules/MenuLibrary.psm1
+<#
+.SYNOPSIS
+  Bootstraps the WFM framework: loads global config and exposes helper APIs.
 
-#region ====== Load Modules =======================================================================
-#region -------- Load Global Configuration --------------------------------------------------------
-Import-Module "$PSScriptRoot/Config.psm1"
+.DESCRIPTION
+  Imports the Config module, reads and caches the global JSON configuration
+  into $Global:WFMConfig, and exposes Get-GlobalConfig as an advanced function.
+  Other subsystems (plugins, i18n, telemetry, dynamic menu loader) can be
+  imported here as needed by uncommenting the relevant regions.
 
-# Load once into a global variable
-$Global:WFMConfig = Load-GlobalConfig
+.NOTES
+  Place this file as “Bootstrap.ps1” or similar in your script root.
+#>
 
-# Example: expose config as a cmdlet
-function Get-GlobalConfig { return $Global:WFMConfig }
+#region ====== Load Config Module & Initialize GlobalConfig =======================================
+#region -------- Load Config Module ---------------------------------------------------------------
+# Load the Config module that defines Import-GlobalConfig
+Import-Module (Join-Path $PSScriptRoot 'Config.psm1') -ErrorAction Stop
 
-#endregion ----------------------------------------------------------------------------------------
-#region -------- Plugin Loader --------------------------------------------------------------------
-#Import-Module "$PSScriptRoot/PluginLoader.psm1"; Import-Plugins $Global:Config.Paths.Plugins
+# Import the JSON config into a global variable
+try {
+    $Global:WFMConfig = Import-GlobalConfig -ConfigPath (Resolve-Path "$PSScriptRoot/../config.json")
+    Write-Verbose "Global configuration loaded successfully."
+}
+catch {
+    Write-Error "Failed to load global config: $($_.Exception.Message)" -ErrorAction Stop
+}
+#endregion
+#region -------- Initialize GlobalConfig ----------------------------------------------------------
+<#
+.SYNOPSIS
+  Retrieves the cached global configuration.
 
-#endregion ----------------------------------------------------------------------------------------
-#region -------- i18n stub ------------------------------------------------------------------------
-#Import-Module "$PSScriptRoot/I18n.psm1";       $Global:Translations = Load-Translations `
-#                                                -Lang $Global:Config.Language `
-#                                                -BasePath (Split-Path $PSScriptRoot)
+.DESCRIPTION
+  Returns the object loaded into $Global:WFMConfig at script startup.
+  Use this in other scripts or modules to read framework settings.
 
-#endregion ----------------------------------------------------------------------------------------
-#region -------- Load Telemetry -------------------------------------------------------------------
-#Import-Module "$PSScriptRoot/Telemetry.psm1"
+.OUTPUTTYPE
+  System.Management.Automation.PSCustomObject
 
-#endregion ----------------------------------------------------------------------------------------
+.EXAMPLE
+  PS> Get-GlobalConfig
+  @{ Theme = "dark"; Paths = @{ Plugins = "C:\MyApp\Plugins" }; ... }
 
+.NOTES
+  This is a passthrough to the global variable; no reloading occurs.
+#>
+function Get-GlobalConfig {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param()
+
+    return $Global:WFMConfig
+}
+#endregion
+#region -------- Plugin Loader ------------------------------------------------------------Disabled
+<#
+Import-Module (Join-Path $PSScriptRoot 'PluginLoader.psm1') -ErrorAction Stop
+# Import all plugins from the configured path
+$pluginsPath = $Global:WFMConfig.Paths.Plugins
+if (Test-Path $pluginsPath) {
+    Import-Plugins -PluginsPath $pluginsPath
+}
+#>
+#endregion
+#region -------- i18n stub ----------------------------------------------------------------Disabled
+<#
+Import-Module (Join-Path $PSScriptRoot 'I18n.psm1') -ErrorAction Stop
+$Global:Translations = Load-Translations `
+  -Lang     $Global:WFMConfig.Language `
+  -BasePath (Split-Path $PSScriptRoot)
+#>
+#endregion
+#region -------- Load Telemetry -----------------------------------------------------------Disabled
+<#
+Import-Module (Join-Path $PSScriptRoot 'Telemetry.psm1') -ErrorAction Stop
+# Example: Send-Telemetry -EventName 'AppStart' -Properties @{ User = $env:USERNAME }
+#>
+#endregion
+#region -------- Dynamic Menu Builder -----------------------------------------------------Disabled
+<#
+Import-Module (Join-Path $PSScriptRoot '../Modules/DynamicModuleLoader.psm1') -ErrorAction Stop
+# In your menu scripts, call:
+#   Get-ModuleFunctionsFromScriptName
+#>
+#endregion
 #endregion ========================================================================================
 
 #region ====== Functions for Admin Permissions ====================================================
 #region -------- Start As Administrator -----------------------------------------------------------
 <#
 .SYNOPSIS
-    Relauch PowerShell with elevated privileges.
+  Relaunch the current PowerShell session with elevated privileges.
+.DESCRIPTION
+  If the current process is not running as Administrator, this
+  cmdlet will re-invoke PowerShell.exe with the same arguments
+  under the Administrator verb. It supports ShouldProcess so
+  you can confirm or suppress via -Confirm.
 .PARAMETER Arguments
-    Optional arguments to pass to the new process.
+  Optional arguments to pass to the new PowerShell process.
 .EXAMPLE
-    Start-AsAdmin -Arguments "-NoProfile -File `"$PSCommandPath`""
+  # Relaunch your script elevated:
+  Start-AsAdmin -Arguments "-NoProfile -File `"$PSCommandPath`""
+.NOTES
+  This cmdlet does not return any pipeline output.
 #>
 function Start-AsAdmin {
     [CmdletBinding()]
@@ -55,40 +122,54 @@ function Start-AsAdmin {
         Write-Error "Failed to run as admin: $_"
     }
 }
-#endregion ----------------------------------------------------------------------------------------
+#endregion
 #region -------- Invoke As Administrator ----------------------------------------------------------
 <#
 .SYNOPSIS
-    Ensures the current script is running as administrator.
+  Ensure the current session is running as Administrator.
 .DESCRIPTION
-    Checks if the script is elevated; if not, re-launches the current script as an administrator.
+  Checks the caller’s Windows principal. If not elevated, prints
+  an informational message, calls Start-AsAdmin, and exits.
 .EXAMPLE
-    Invoke-AsAdministrator
+  # At the top of a script:
+  Invoke-AsAdministrator
+.NOTES
+  This cmdlet exits the current process if elevation is required.
 #>
 function Invoke-AsAdministrator {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Host "Restarting as Administrator..."
+        Write-Output '"Restarting as Administrator..."'
         Start-AsAdmin -Arguments $MyInvocation.MyCommand.Definition
         exit
     }
 }
-#endregion ----------------------------------------------------------------------------------------
-
+#endregion
 #endregion ========================================================================================
 
 #region ====== Menu Alignment and Sizing ==========================================================
 #region -------- Write Centered -------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Writes a centered line to the console.
+  Centers input text based on console width and writes it to the host.
+
+.DESCRIPTION
+  Calculates the required left-padding to center your string, then
+  emits it via Write-UI (so you get colors, no-newline support,
+  and a single funnel point for future redirection).
+
 .PARAMETER Text
-    The text to write.
+  The text to center and display.
+
 .PARAMETER ForegroundColor
-    (Optional) Specifies the output color (default: White).
+  The color of the text (defaults to Gray).
+
+.OUTPUTTYPE
+  System.Void
+
 .EXAMPLE
-    Write-Centered -Text "Goodbye" -ForegroundColor Green
+  Write-Centered -Text "Hello, World!" -ForegroundColor Green
 #>
 function Write-Centered {
     [CmdletBinding()]
@@ -102,15 +183,25 @@ function Write-Centered {
     $centeredText = (" " * $padding) + $Text
     Write-Host $centeredText -ForegroundColor $ForegroundColor
 }
-#endregion ----------------------------------------------------------------------------------------
+#endregion
 #region -------- Show Centered Info ---------------------------------------------------------------
 <#
 .SYNOPSIS
-    Displays centered information using Update-CenteredOutput.
+  Centers & displays a single line of text.
+
+.DESCRIPTION
+  Shorthand: runs your string through Format-CenteredOutput and
+  writes it (and also returns it if you need it programmatically).
+
 .PARAMETER Info
-    The informational text.
+  The text to center.
+
+.OUTPUTTYPE
+  System.String
+
 .EXAMPLE
-    Show-CenteredInfo -Info "Welcome!"
+  $line = Show-CenteredInfo -Info "Welcome!"
+  # $line now holds the padded string, too
 #>
 function Show-CenteredInfo {
     [CmdletBinding()]
@@ -118,21 +209,30 @@ function Show-CenteredInfo {
         [Parameter(Mandatory = $true)]
         [string]$Info
     )
-    $centeredText = Update-CenteredOutput -Text $Info
-    Write-Host $centeredText
+    $centeredText = Format-CenteredOutput -Text $Info
+    Write-Output '$centeredText'
 }
-#endregion ----------------------------------------------------------------------------------------
-#region -------- Update Centered Output -----------------------------------------------------------
+#endregion
+#region -------- Format Centered Output -----------------------------------------------------------
 <#
 .SYNOPSIS
-    Centers input text based on console width.
-.PARAMETER Text
-    The text to be centered.
-.EXAMPLE
-    Update-CenteredOutput -Text "Hello"
-#>
+  Calculates the left-padding to center text in the console.
 
-function Update-CenteredOutput {
+.DESCRIPTION
+  Returns a new string, prefixed with spaces so that when you Write-Host it,
+  it will appear centered in the current console window width.
+
+.PARAMETER Text
+  The text to center.
+
+.OUTPUTTYPE
+  System.String
+
+.EXAMPLE
+  $c = Format-CenteredOutput -Text "Hello"
+  # => "     Hello"  (with enough spaces in front)
+#>
+function Format-CenteredOutput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -147,271 +247,425 @@ function Update-CenteredOutput {
     $padding = [math]::Floor(($consoleWidth - $Text.Length) / 2)
     return (" " * $padding) + $Text
 }
-#endregion ----------------------------------------------------------------------------------------
-
+#endregion
 #endregion ========================================================================================
 
 #region ====== Functions for Menu =================================================================
+#region -------- Get Resolved Script Path ---------------------------------------------------------
+<#
+.SYNOPSIS
+  Resolves a script key into a full file path based on your config.
+.DESCRIPTION
+  Looks up the Scripts hashtable in your module config and returns
+  the resolved absolute path. Throws if the key is missing.
+.PARAMETER ScriptKey
+  The key name in the config’s Scripts hashtable.
+.OUTPUTTYPE
+  System.String
+.EXAMPLE
+  $path = Get-ResolvedScriptPath -ScriptKey 'CleanUpScript'
+#>
+[CmdletBinding()]
+[OutputType([string])]
+function Get-ResolvedScriptPath {
+    param(
+        [Parameter(Mandatory)][string] $ScriptKey
+    )
+
+    $relative = $Global:WFMConfig.Scripts[$ScriptKey]
+    if (-not $relative) {
+        Throw "Script key '$ScriptKey' not found in global config."
+    }
+
+    try {
+        $combined = Join-Path -Path $PSScriptRoot -ChildPath "..\$relative"
+        return (Resolve-Path -Path $combined -ErrorAction Stop).ProviderPath
+    }
+    catch {
+        Throw "Failed to resolve script path for key '$ScriptKey': $($_.Exception.Message)"
+    }
+}
+#endregion
 #region -------- Confirm Action -------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Prompts the user for confirmation before proceeding with an action.
+  Prompts the user with a Y/N question.
+.DESCRIPTION
+  Displays the given message with a [Y]/N or Y/[N] choice, looping until
+  the user enters a valid selection. Returns $true or $false.
 .PARAMETER Message
-    The message to display to the user.
+  The prompt text to display.
 .PARAMETER Default
-    The default response if the user simply presses Enter.
+  The default choice if the user just presses Enter: 'Y' or 'N'.
+.OUTPUTTYPE
+  System.Boolean
 .EXAMPLE
-    Confirm-Action -Message "Are you sure?" -Default 'N'
+  if (Confirm-Action -Message 'Delete all temp files?' -Default 'N') {
+      Remove-Item $tempFolder -Recurse
+  }
 #>
+[CmdletBinding()]
+[OutputType([bool])]
 function Confirm-Action {
-    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string] $Message,
         [ValidateSet('Y','N')][string] $Default = 'N'
     )
+
     $choices = if ($Default -eq 'Y') { '[Y]/N' } else { 'Y/[N]' }
     while ($true) {
-        $resp = Read-Host "$Message $choices"
-        if (-not $resp) { $resp = $Default }
-        switch ($resp.ToUpper()) {
+        $resp = Read-Host -Prompt "$Message $choices"
+        if (![string]::IsNullOrWhiteSpace($resp)) {
+            $resp = $resp.ToUpper()
+        }
+        else {
+            $resp = $Default
+        }
+
+        switch ($resp) {
             'Y' { return $true }
             'N' { return $false }
-            default { Write-Host ' Please enter Y or N.' -ForegroundColor Yellow }
+            default { Write-Warning 'Please enter Y or N.' }
         }
     }
 }
-#endregion  ---------------------------------------------------------------------------------------
+#endregion
 #region -------- Pause ----------------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Pauses the script execution and waits for user input.
+  Pauses script execution until the user presses any key.
 .DESCRIPTION
-    This function displays a message prompting the user to press Enter to continue.
+  Displays a prompt message and waits for a single keypress.
 .PARAMETER Message
-    The message to display to the user.
+  The message to display (default: "Press any key to continue…").
+.OUTPUTTYPE
+  None
 .EXAMPLE
-    Pause -Message "Press Enter to continue..."
+  Pause -Message 'Ready to proceed?'
 #>
+[CmdletBinding()]
+[OutputType()]
 function Pause {
-    [CmdletBinding()]
-    param([string]$Message = 'Press any key to continue…')
-    Write-Host; Write-Host $Message -ForegroundColor DarkGray
-    [Console]::ReadKey($true) | Out-Null
+    param(
+        [string] $Message = 'Press any key to continue…'
+    )
+    Write-Host $Message -ForegroundColor DarkGray
+    [System.Console]::ReadKey($true) | Out-Null
 }
-#endregion  ---------------------------------------------------------------------------------------
+#endregion
 #region -------- Read-Input -----------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Reads user input from the console.
-.DESCRIPTION
-    This function prompts the user for input and returns the entered value.
+  Reads user input from the console.
 .PARAMETER Prompt
-    The message to display to the user.
-.EXAMPLE
-    $userInput = Read-Input -Prompt "Enter your name:"
+  Prompt text.
+.PARAMETER Default
+  Default value if empty.
+.PARAMETER AsSecureString
+  If set, returns a SecureString.
+.OUTPUTTYPE
+  System.String, System.Security.SecureString
 #>
+[CmdletBinding()]
+[OutputType([string],[System.Security.SecureString])]
 function Read-Input {
-    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string] $Prompt,
         [string]                     $Default,
         [switch]                     $AsSecureString
     )
+
     if ($AsSecureString) {
-        return Read-Host $Prompt -AsSecureString
+        return Read-Host -Prompt $Prompt -AsSecureString
     }
-    if ($Default) {
-        $resp = Read-Host "$Prompt [$Default]"
-        return if ($resp) { $resp } else { $Default }
-    } else {
-        return Read-Host $Prompt
+
+    if ($PSBoundParameters.ContainsKey('Default')) {
+        $response = Read-Host -Prompt "$Prompt [$Default]"
+        return if ([string]::IsNullOrWhiteSpace($response)) { $Default } else { $response }
     }
+
+    return Read-Host -Prompt $Prompt
 }
-#endregion  ---------------------------------------------------------------------------------------
+#endregion
 #region -------- Show-PageText --------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Displays a text page with pagination.
-.DESCRIPTION
-    This function takes a long string of text and displays it one page at a time,
-    allowing the user to navigate through the text using keyboard input.
-.PARAMETER Text
-    The text to display.
-.PARAMETER PageSize
-    The number of lines to display per page.
-.EXAMPLE
-    Show-PageText -Text $longText -PageSize 10
+  Displays a text file one page at a time.
+.PARAMETER FilePath
+  Path of the file to display.
+.OUTPUTTYPE
+  None
 #>
+[CmdletBinding()]
+[OutputType()]
 function Show-PagedText {
-    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string] $FilePath
     )
-    if (-not (Test-Path $FilePath)) {
-        Write-Error "File not found: $FilePath"; return
+
+    if (-not (Test-Path -Path $FilePath)) {
+        Write-Error "File not found: $FilePath"
+        return
     }
-    $lines = Get-Content $FilePath
-    $pageSize = [Console]::WindowHeight - 4
-    for ($i=0; $i -lt $lines.Count; $i += $pageSize) {
+
+    $lines    = Get-Content -Path $FilePath
+    $pageSize = [System.Console]::WindowHeight - 4
+    $pos      = 0
+
+    while ($pos -lt $lines.Count) {
         Clear-Host
-        $slice = $lines[$i..[math]::Min($i+$pageSize-1,$lines.Count-1)]
-        $slice | ForEach-Object { Write-Host $_ }
-        Write-Host; Write-Host "PgUp/PgDn Navigate pages, Esc to exit..." -ForegroundColor DarkGray
-        $k = [Console]::ReadKey($true)
-        if ($k.Key -eq 'Escape') { break }
-        if ($k.Key -eq 'PageUp') { $i = [math]::Max(-$pageSize, $i - 2*$pageSize) }
+        $end = [math]::Min($pos + $pageSize - 1, $lines.Count - 1)
+        $lines[$pos..$end] | ForEach-Object { Write-Host $_ }
+        Write-Host "`nPgUp/PgDn to navigate, Esc to exit." -ForegroundColor DarkGray
+
+        $key = [System.Console]::ReadKey($true)
+        switch ($key.Key) {
+            'PageDown' { $pos = [math]::Min($pos + $pageSize, $lines.Count) }
+            'PageUp'   { $pos = [math]::Max($pos - $pageSize, 0) }
+            'Escape'   { break }
+            default    { }  # ignore other keys
+        }
     }
 }
-#endregion  ---------------------------------------------------------------------------------------
+#endregion
 #region -------- Show-ProgressBar -----------------------------------------------------------------
 <#
 .SYNOPSIS
-    Displays a progress bar in the console.
+  Displays a console progress bar.
 .DESCRIPTION
-    This function shows a progress bar in the console window, which can be used to indicate the progress of a long-running operation.
-.PARAMETER Percentage
-    The percentage of completion (0-100) to display on the progress bar.
-.EXAMPLE
-    Show-ProgressBar -Percentage 75
+  Wraps the built-in Write-Progress cmdlet to show percentage, activity, and status.
+.PARAMETER PercentComplete
+  The completion percentage (0–100).
+.PARAMETER Activity
+  The high-level operation name.
+.PARAMETER Status
+  An optional detailed status message.
+.OUTPUTTYPE
+  None
 #>
+[CmdletBinding()]
+[OutputType()]
 function Show-ProgressBar {
-    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][int]    $PercentComplete,
         [Parameter(Mandatory)][string] $Activity,
         [string]                       $Status
     )
-    Write-Progress -Activity $Activity -Status $Status -PercentComplete $PercentComplete
+
+    Write-Progress `
+      -Activity      $Activity `
+      -Status        $Status `
+      -PercentComplete $PercentComplete
 }
-#endregion  ---------------------------------------------------------------------------------------
+#endregion
 #region -------- Show-Help ------------------------------------------------------------------------
 <#
 .SYNOPSIS
-    Displays help information for the script or module.
-
+  Shows keybindings and shortcuts for the menu system.
 .DESCRIPTION
-    This function shows help information, including available commands and their usage.
-
-.PARAMETER Command
-    The command for which to display help information.
-
-.EXAMPLE
-    Show-Help -Command Get-MenuTitle
+  Clears the screen, writes out a help page with navigation hints,
+  then waits for any key before returning.
+.OUTPUTTYPE
+  None
 #>
+[CmdletBinding()]
+[OutputType()]
 function Show-Help {
     Clear-Host
-    @"
+    $helpText = @"
 Menu Navigation Help
 
   ↑ / ↓       Move selection
-  PgUp/PgDn   Jump a page
+  PgUp / PgDn Jump a page
   Enter       Select highlighted item
   b           Go back to previous menu
   Esc         Exit application
-  h           Show this screen
+  h           Show this help screen
 
 Press any key to return...
-"@ | Write-Host
-    [Console]::ReadKey($true) | Out-Null
+"@
+    $helpText.Split("`n") | ForEach-Object { Write-Host $_ }
+    [System.Console]::ReadKey($true) | Out-Null
 }
-#endregion  ---------------------------------------------------------------------------------------
-
+#endregion
 #endregion ========================================================================================
 
 #region ====== Get Script Name annd set Menu Title ================================================
 <#
 .SYNOPSIS
-    Retrieves the script name and sets it as the menu title.
+  Generates a user-friendly menu title from a script’s file name.
+
 .DESCRIPTION
-    This function gets the name of the currently executing script, removes the file extension,
-    and replaces underscores with spaces to create a user-friendly title for the menu.
-.PARAMETER ScriptName
-    The name of the script file (without extension) to use as the menu title.
-.PARAMETER Title
-    The title to set for the console window.
+  Takes a file path (defaulting to the currently executing script),
+  strips off its extension, replaces underscores/dashes with spaces,
+  trims any extra whitespace, and returns the result.
+
+.PARAMETER Path
+  The full path to a script file. If omitted, defaults to the caller’s script.
+
+.OUTPUTTYPE
+  System.String
+
 .EXAMPLE
-    $MenuTitle = Get-MenuTitle
-    Write-Host "Menu Title: $MenuTitle"
+  PS> Get-MenuTitleFromFile -Path "C:\Tools\My_Script-Job.ps1"
+  My Script Job
+
+.EXAMPLE
+  PS> & ".\Menus\Main_Menu.ps1" | Get-MenuTitleFromFile
+  Main Menu
 #>
-function Get-MenuTitle {
-    # Get the name of the currently executing script
-    $scriptFileName = $MyInvocation.MyCommand.Name
+function Get-MenuTitleFromFile {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [string]$Path = $MyInvocation.MyCommand.Path
+    )
 
-    # Remove the file extension (if needed)
-    $scriptFileName = [System.IO.Path]::GetFileNameWithoutExtension($scriptFileName)
+    if (-not $Path) {
+        Write-Warning 'Unable to determine script path.'
+        return 'Untitled Menu'
+    }
 
-    # Replace underscores with spaces
-    return $scriptFileName.Replace('_', ' ')
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($Path)
+    return ($base -replace '[_\-]', ' ').Trim()
 }
 #endregion ========================================================================================
 
 #region ====== Show-Menu ==========================================================================
+<#
+.SYNOPSIS
+  Renders a console menu and returns the selected value.
+.DESCRIPTION
+  Displays a list of labeled options centered in the console window.
+  Use arrow keys or PageUp/PageDown to move; Enter to select; Esc to exit; b to go back; h for help.
+.PARAMETER Title
+  The menu header text.
+.PARAMETER Options
+  Array of objects with `.Label` and `.Value` properties.
+.PARAMETER FgColor
+  Foreground color for un-selected items.
+.PARAMETER BgColor
+  Background color for un-selected items.
+.PARAMETER SelFgColor
+  Foreground color for the selected item.
+.PARAMETER SelBgColor
+  Background color for the selected item.
+.OUTPUTTYPE
+  System.String
+.EXAMPLE
+  $choice = Show-Menu -Title 'Main Menu' -Options $menuItems
+.NOTES
+  Relies on Write-UI and Format-CenteredOutput helpers.
+#>
 function Show-Menu {
     [CmdletBinding()]
+    [OutputType([object])]
     param(
         [Parameter(Mandatory)][string]   $Title,
-        [Parameter(Mandatory)][object[]] $Options,   # array of @{ Label = '…'; Value = <any> }
-        [int]                            $PageSize = [Console]::WindowHeight - 6
+        [Parameter(Mandatory)][object[]] $Options,
+        [string]                         $FgColor,
+        [string]                         $BgColor,
+        [string]                         $SelFgColor,
+        [string]                         $SelBgColor
     )
 
-    # State
-    $selectedIndex = 0
-    $topIndex      = 0
-    $maxIndex      = $Options.Count - 1
-
-    function Draw-Menu {
-        Clear-Host
-        # Header
-        "`n========== $Title ==========`n"
-        # Visible slice
-        $slice = $Options[$topIndex..([math]::Min($topIndex + $PageSize - 1, $maxIndex))]
-        for ($i = 0; $i -lt $slice.Count; $i++) {
-            $globalIdx = $topIndex + $i
-            if ($globalIdx -eq $selectedIndex) {
-                Write-Host " > " -NoNewline -ForegroundColor Cyan
-                Write-Host $slice[$i].Label -ForegroundColor White -BackgroundColor DarkBlue
-            } else {
-                Write-Host "   " + $slice[$i].Label
-            }
-        }
-        "`nUse ↑ ↓ PgUp PgDn to navigate; Enter to select; b=back; Esc=exit; h=help"
+    # Ensure config and Appearance defaults exist
+    if (-not $Global:WFMConfig.Appearance) {
+        $Global:WFMConfig.Appearance = @{}
+    }
+    $app      = $Global:WFMConfig.Appearance
+    $defaults = @{
+        FgColor    = 'White'
+        BgColor    = 'DarkBlue'
+        SelFgColor = 'Black'
+        SelBgColor = 'Cyan'
     }
 
-    while ($true) {
-        Draw-Menu
-        $key = [Console]::ReadKey($true)
+    # Determine palette
+    $FgColor    = if ($PSBoundParameters.ContainsKey('FgColor') -and $FgColor)    { $FgColor    }
+                   elseif ($app.FgColor)    { $app.FgColor    } else { $defaults.FgColor }
+    $BgColor    = if ($PSBoundParameters.ContainsKey('BgColor') -and $BgColor)    { $BgColor    }
+                   elseif ($app.BgColor)    { $app.BgColor    } else { $defaults.BgColor }
+    $SelFgColor = if ($PSBoundParameters.ContainsKey('SelFgColor') -and $SelFgColor) { $SelFgColor }
+                   elseif ($app.SelFgColor) { $app.SelFgColor } else { $defaults.SelFgColor }
+    $SelBgColor = if ($PSBoundParameters.ContainsKey('SelBgColor') -and $SelBgColor) { $SelBgColor }
+                   elseif ($app.SelBgColor) { $app.SelBgColor } else { $defaults.SelBgColor }
 
+    # Parse to [ConsoleColor]
+    try { $Fg   = [ConsoleColor]::Parse([ConsoleColor], $FgColor)    } catch { $Fg   = [ConsoleColor]$defaults.FgColor }
+    try { $Bg   = [ConsoleColor]::Parse([ConsoleColor], $BgColor)    } catch { $Bg   = [ConsoleColor]$defaults.BgColor }
+    try { $SelF = [ConsoleColor]::Parse([ConsoleColor], $SelFgColor) } catch { $SelF = [ConsoleColor]$defaults.SelFgColor }
+    try { $SelB = [ConsoleColor]::Parse([ConsoleColor], $SelBgColor) } catch { $SelB = [ConsoleColor]$defaults.SelBgColor }
+
+    $width    = [Console]::WindowWidth
+    $index    = 0
+    $maxIndex = $Options.Count - 1
+
+    while ($true) {
+        Clear-Host
+
+        # Title
+        $t = "  $Title  "
+        $padT = [Math]::Floor(($width - $t.Length)/2)
+        Write-Host (' ' * $padT) -NoNewline
+        Write-Host $t -ForegroundColor $SelF -BackgroundColor $SelB
+        Write-Host ''
+
+        # Options
+        for ($i = 0; $i -le $maxIndex; $i++) {
+            $lbl  = "  $($Options[$i].Label)  "
+            $pad  = [Math]::Floor(($width - $lbl.Length)/2)
+            Write-Host (' ' * $pad) -NoNewline
+            if ($i -eq $index) {
+                Write-Host $lbl -ForegroundColor $SelF -BackgroundColor $SelB
+            } else {
+                Write-Host $lbl -ForegroundColor $Fg -BackgroundColor $Bg
+            }
+        }
+
+        Write-Host ''
+        $hint = '↑/↓ nav   PgUp/PgDn page   Enter select   b back   Esc exit   h help'
+        $padH = [Math]::Floor(($width - $hint.Length)/2)
+        Write-Host (' ' * $padH) -NoNewline
+        Write-Host $hint -ForegroundColor DarkGray
+
+        # Key handling
+        $key = [Console]::ReadKey($true)
         switch ($key.Key) {
-            'UpArrow' {
-                if ($selectedIndex -gt 0) { $selectedIndex-- }
-                if ($selectedIndex -lt $topIndex) { $topIndex = $selectedIndex }
-            }
-            'DownArrow' {
-                if ($selectedIndex -lt $maxIndex) { $selectedIndex++ }
-                if ($selectedIndex -ge $topIndex + $PageSize) {
-                    $topIndex = $selectedIndex - $PageSize + 1
-                }
-            }
-            'PageUp' {
-                $selectedIndex = [math]::Max(0, $selectedIndex - $PageSize)
-                $topIndex      = [math]::Max(0, $topIndex - $PageSize)
-            }
-            'PageDown' {
-                $selectedIndex = [math]::Min($maxIndex, $selectedIndex + $PageSize)
-                $topIndex      = [math]::Min($maxIndex - $PageSize + 1, $topIndex + $PageSize)
-            }
-            'Escape' { return 'ESC' }
-            'B'       { return 'BACK' }
-            'H'       { return 'HELP' }
-            'Enter'   { return $Options[$selectedIndex].Value }
-            default   { }
+            'UpArrow'   { if ($index -gt 0)         { $index-- } }
+            'DownArrow' { if ($index -lt $maxIndex) { $index++ } }
+            'PageUp'    { $index = [Math]::Max(0,      $index - 5) }
+            'PageDown'  { $index = [Math]::Min($maxIndex,$index + 5) }
+            'Escape'    { return 'ESC' }
+            'B'         { return 'BACK' }
+            'H'         { if (Get-Command Show-Help -ErrorAction SilentlyContinue) { Show-Help }; continue }
+            'Enter'     { return $Options[$index].Value }
+            default     { continue }
         }
     }
 }
-#endregion ========================================================================================
+#endregion
 
-Export-ModuleMember `
-     -Function Start-AsAdmin, Invoke-AsAdministrator, Get-GlobalConfig, `
-                Write-Centered, Show-CenteredInfo, Update-CenteredOutput
-                Confirm-Action, Pause, Read-Input, Show-PagedText, Show-ProgressBar, Show-Help, `
-                Show-Menu
+#region ====== Export Module Member ===============================================================
+# Publicly exposed functions from MenuLibrary.psm1
+$publicFns = @(
+    'Start-AsAdmin'
+    'Invoke-AsAdministrator'
+    'Get-GlobalConfig'
+    'Get-ResolvedScriptPath'
+    'Get-MenuTitleFromFile'
+    'Write-Centered'
+    'Format-CenteredOutput'
+    'Show-CenteredInfo'
+    'Confirm-Action'
+    'Pause'
+    'Read-Input'
+    'Show-PagedText'
+    'Show-ProgressBar'
+    'Show-Help'
+    'Show-Menu'
+)
+
+Export-ModuleMember -Function $publicFns
+
+#endregion
