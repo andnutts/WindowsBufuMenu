@@ -1,0 +1,59 @@
+{
+  // General  
+  "ProjectName":    "WindowsBufuMenu",
+  "Language":       "en-US",            // i18n
+  "Theme":          "dark",             // dark | light | solarized
+
+  // Paths  
+  "Paths": {
+    "Logs":         "./Logs",
+    "Modules":      "./Modules",
+    "Menus":        "./Menus",
+    "Temp":         "%TEMP%"
+  },
+
+  // Key Bindings
+  "KeyBindings": {
+    "Up":        "UpArrow",
+    "Down":      "DownArrow",
+    "PageUp":    "PageUp",
+    "PageDown":  "PageDown",
+    "Select":    "Enter",
+    "Back":      "B",
+    "Exit":      "Escape",
+    "Help":      "H",
+    "Search":    "/" 
+  },
+
+  // Menu customization  
+  "MenuOrder": [
+    "Main_Menu",
+    "WSL2_Menu",
+    "Edit_Configuration_Menu",
+    "Firewall_Menu",
+    "Maintenance_Menu",
+    "Log_Viewer_Menu",
+    "Port_Forwarding_Menu",
+    "Utility_Menu",
+    "Menu_Customizer_Menu"
+  ],
+  "HiddenMenus": [
+    // drop any menu you don’t want to show by default
+  ],
+  "LabelOverrides": {
+    // override any auto-generated label
+    "WSL2_Menu":             "WSL2 Settings",
+    "Edit_Configuration_Menu":"Configuration Editor"
+  },
+
+  // Profiles (for future expansion)  
+  "Profiles": {
+    "default": {
+      "WSL2": { "DefaultDistro": "Ubuntu-22.04" }
+    },
+    "dev": {
+      "WSL2": { "DefaultDistro": "Debian" }
+    }
+  },
+  "ActiveProfile": "default"
+}
